@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-info { display: flex; gap: 20px; align-items: center; }
+        .container { padding: 20px; max-width: 1600px; margin: 0 auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stat-card {
+            text-align: center;
+            padding: 30px;
+        }
+        .stat-value {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 10px;
+        }
+        #map { height: 500px; border-radius: 10px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .severity-critical { color: #dc3545; font-weight: bold; }
+        .severity-high { color: #fd7e14; font-weight: bold; }
+        .severity-medium { color: #ffc107; font-weight: bold; }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .tab.active { background: #667eea; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ SOC Platform</h1>
+        <div class="user-info">
+            <span id="userName"></span>
+            <span id="userRole"></span>
+            <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="showTab('incidents')">Incidents</button>
+        </div>
+
+        <div id="dashboardTab" class="tab-content active">
+            <div class="grid">
+                <div class="card stat-card">
+                    <div class="stat-value" id="totalAttacks">0</div>
+                    <div class="stat-label">Total Attacks</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-value" id="criticalAttacks">0</div>
+                    <div class="stat-label">Critical Attacks</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-value" id="uniqueIPs">0</div>
+                    <div class="stat-label">Unique IPs</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 20px;">
+                <h2 style="margin-bottom: 15px;">🗺️ Live Attack Map</h2>
+                <div id="map"></div>
+            </div>
+
+            <div class="grid">
+                <div class="card">
+                    <h3 style="margin-bottom: 15px;">Attack Types</h3>
+                    <canvas id="attackTypesChart"></canvas>
+                </div>
+                <div class="card">
+                    <h3 style="margin-bottom: 15px;">Attack Timeline</h3>
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 style="margin-bottom: 15px;">🚨 Recent Attacks</h2>
+                <table id="attacksTable">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Source IP</th>
+                            <th>Country</th>
+                            <th>Details</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="incidentsTab" class="tab-content">
+            <button class="btn btn-primary" style="margin-bottom: 20px;" onclick="showCreateIncident()">+ Create Incident</button>
+            <div class="card">
+                <h2 style="margin-bottom: 15px;">📋 Incidents</h2>
+                <table id="incidentsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Severity</th>
+                            <th>Status</th>
+                            <th>Assigned To</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="createIncidentModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;">Create Incident</h2>
+            <form id="createIncidentForm">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Severity</label>
+                    <select name="severity" required>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Assign To</label>
+                    <select name="assignedTo">
+                        <option value="">Unassigned</option>
+                        <option value="tier1">Tier 1 Analyst</option>
+                        <option value="tier2a">Tier 2 Analyst A</option>
+                        <option value="tier2b">Tier 2 Analyst B</option>
+                        <option value="ir">Incident Responder</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success">Create</button>
+                <button type="button" class="btn" onclick="closeModal('createIncidentModal')">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let map, attacks = [], incidents = [];
+
+        // Initialize
+        async function init() {
+            const user = await fetch('/api/user').then(r => r.json());
+            document.getElementById('userName').textContent = user.name;
+            document.getElementById('userRole').textContent = user.role.toUpperCase();
+
+            initMap();
+            loadAttacks();
+            loadIncidents();
+            setInterval(loadAttacks, 10000); // Refresh every 10s
+        }
+
+        function initMap() {
+            map = L.map('map').setView([20, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        }
+
+        async function loadAttacks() {
+            attacks = await fetch('/api/attacks').then(r => r.json());
+            const stats = await fetch('/api/stats').then(r => r.json());
+            
+            // Update stats
+            document.getElementById('totalAttacks').textContent = attacks.length;
+            document.getElementById('criticalAttacks').textContent = 
+                attacks.filter(a => ['SQL_INJECTION', 'MALICIOUS_FILE_UPLOAD', 'DOS_ATTACK'].includes(a.type)).length;
+            document.getElementById('uniqueIPs').textContent = new Set(attacks.map(a => a.ip)).size;
+
+            // Update map
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker) map.removeLayer(layer);
+            });
+            attacks.forEach(attack => {
+                if (attack.geo && attack.geo.ll && attack.geo.ll[0] !== 0) {
+                    L.marker([attack.geo.ll[0], attack.geo.ll[1]])
+                        .bindPopup(`<b>${attack.type}</b><br>${attack.ip}<br>${attack.geo.country}`)
+                        .addTo(map);
+                }
+            });
+
+            // Update table
+            const tbody = document.querySelector('#attacksTable tbody');
+            tbody.innerHTML = attacks.slice(0, 20).map(a => `
+                <tr>
+                    <td>${new Date(a.timestamp).toLocaleString()}</td>
+                    <td class="severity-${getSeverity(a.type)}">${a.type}</td>
+                    <td>${a.ip}</td>
+                    <td>${a.geo.country}</td>
+                    <td>${a.details || '-'}</td>
+                    <td><button class="btn btn-primary" onclick="createIncidentFromAttack('${a.id}')">Create Incident</button></td>
+                </tr>
+            `).join('');
+
+            updateCharts(stats);
+        }
+
+        function getSeverity(type) {
+            if (['SQL_INJECTION', 'MALICIOUS_FILE_UPLOAD', 'DOS_ATTACK'].includes(type)) return 'critical';
+            if (['XSS_ATTEMPT', 'PATH_TRAVERSAL'].includes(type)) return 'high';
+            return 'medium';
+        }
+
+        function updateCharts(stats) {
+            // Attack types chart
+            if (window.attackTypesChart) window.attackTypesChart.destroy();
+            const ctx1 = document.getElementById('attackTypesChart').getContext('2d');
+            window.attackTypesChart = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: stats.byType.map(b => b.key),
+                    datasets: [{
+                        data: stats.byType.map(b => b.doc_count),
+                        backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#17a2b8', '#6610f2']
+                    }]
+                }
+            });
+
+            // Timeline chart
+            if (window.timelineChart) window.timelineChart.destroy();
+            const ctx2 = document.getElementById('timelineChart').getContext('2d');
+            window.timelineChart = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: stats.timeline.map(b => new Date(b.key_as_string || b.key).toLocaleTimeString()),
+                    datasets: [{
+                        label: 'Attacks',
+                        data: stats.timeline.map(b => b.doc_count),
+                        borderColor: '#667eea',
+                        fill: true
+                    }]
+                }
+            });
+        }
+
+        async function loadIncidents() {
+            incidents = await fetch('/api/incidents').then(r => r.json());
+            const tbody = document.querySelector('#incidentsTable tbody');
+            tbody.innerHTML = incidents.map(i => `
+                <tr>
+                    <td>${i.id.substring(0, 8)}</td>
+                    <td>${i.title}</td>
+                    <td class="severity-${i.severity}">${i.severity.toUpperCase()}</td>
+                    <td>${i.status}</td>
+                    <td>${i.assignedTo || 'Unassigned'}</td>
+                    <td>${new Date(i.createdAt).toLocaleDateString()}</td>
+                    <td><button class="btn btn-primary" onclick="viewIncident('${i.id}')">View</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+            if (tab === 'incidents') loadIncidents();
+        }
+
+        function showCreateIncident() {
+            document.getElementById('createIncidentModal').style.display = 'block';
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        document.getElementById('createIncidentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                ...Object.fromEntries(formData),
+                status: 'open'
+            };
+
+            await fetch('/api/incidents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            closeModal('createIncidentModal');
+            loadIncidents();
+            e.target.reset();
+        });
+
+        function createIncidentFromAttack(attackId) {
+            const attack = attacks.find(a => a.id === attackId);
+            document.querySelector('[name="title"]').value = `${attack.type} from ${attack.ip}`;
+            document.querySelector('[name="description"]').value = `Attack detected: ${attack.type}\nSource: ${attack.ip} (${attack.geo.country})\nDetails: ${attack.details}`;
+            document.querySelector('[name="severity"]').value = getSeverity(attack.type);
+            showCreateIncident();
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        }
+
+        init();
+    </script>
+</body>
+</html>
+

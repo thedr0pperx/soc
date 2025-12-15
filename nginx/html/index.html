@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Training Platform</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 { font-size: 4em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .subtitle { font-size: 1.5em; margin-bottom: 50px; opacity: 0.9; }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+        .card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 15px;
+            padding: 40px;
+            transition: transform 0.3s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .card h2 { font-size: 2em; margin-bottom: 15px; }
+        .card p { margin-bottom: 25px; line-height: 1.6; }
+        .btn {
+            display: inline-block;
+            background: white;
+            color: #1e3c72;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+        }
+        .btn:hover { opacity: 0.8; }
+        .warning {
+            background: rgba(251, 191, 36, 0.2);
+            border: 2px solid #fbbf24;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ SOC Training Platform</h1>
+        <p class="subtitle">Complete Security Operations Center Simulation</p>
+
+        <div class="cards">
+            <div class="card">
+                <h2>📊 SOC Dashboard</h2>
+                <p>Real-time attack monitoring, live attack map, and incident management system</p>
+                <a href="http://${SERVER_IP}:3000" class="btn">Open Dashboard →</a>
+            </div>
+
+            <div class="card">
+                <h2>🎯 Vulnerable Target</h2>
+                <p>Mini crypto exchange with intentional vulnerabilities for training</p>
+                <a href="http://${SERVER_IP}:8080" class="btn">View Target →</a>
+            </div>
+        </div>
+
+        <div class="warning">
+            <h3>⚠️ Educational Training Environment</h3>
+            <p>This platform contains intentional security vulnerabilities for SOC training purposes only.</p>
+        </div>
+    </div>
+
+    <script>
+        // Replace ${SERVER_IP} with actual server IP
+        const serverIp = window.location.hostname;
+        document.body.innerHTML = document.body.innerHTML.replace(/\$\{SERVER_IP\}/g, serverIp);
+    </script>
+</body>
+</html>
+

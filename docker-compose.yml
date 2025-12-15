@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # Vulnerable Target Application
+  vulnerable-target:
+    build: ./target
+    container_name: crypto-exchange
+    ports:
+      - "8080:8080"
+    volumes:
+      - attack-logs:/app/logs
+    environment:
+      - NODE_ENV=production
+    networks:
+      - soc-network
+    restart: unless-stopped
+
+  # SOC Dashboard & Backend
+  soc-dashboard:
+    build: ./soc-dashboard
+    container_name: soc-dashboard
+    ports:
+      - "3000:3000"
+    volumes:
+      - attack-logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - SESSION_SECRET=soc-training-secret-2025
+    depends_on:
+      - elasticsearch
+      - vulnerable-target
+    networks:
+      - soc-network
+    restart: unless-stopped
+
+  # Elasticsearch (Lightweight)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.name=soc-cluster
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - soc-network
+    restart: unless-stopped
+    mem_limit: 2g
+
+  # NGINX Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: soc-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    depends_on:
+      - soc-dashboard
+      - vulnerable-target
+    networks:
+      - soc-network
+    restart: unless-stopped
+
+volumes:
+  attack-logs:
+    driver: local
+  es-data:
+    driver: local
+
+networks:
+  soc-network:
+    driver: bridge
+
